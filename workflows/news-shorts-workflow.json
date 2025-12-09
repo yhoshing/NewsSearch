@@ -1,0 +1,352 @@
+{
+  "name": "뉴스 쇼츠 자동 생성 워크플로우",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "매 6시간마다 실행",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://newsapi.org/v2/top-headlines",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "country",
+              "value": "kr"
+            },
+            {
+              "name": "pageSize",
+              "value": "20"
+            },
+            {
+              "name": "apiKey",
+              "value": "={{ $env.NEWSAPI_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-news",
+      "name": "뉴스 검색 (NewsAPI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 논란이 되는 키워드 리스트\nconst controversialKeywords = [\n  '논란', '갈등', '비판', '반발', '문제', '의혹',\n  '파문', '충격', '폭로', '스캔들', '사과', '해명',\n  '대립', '반대', '항의', '시위', '불만', '부정'\n];\n\nconst articles = $input.item.json.articles || [];\n\n// 논란 키워드가 포함된 뉴스만 필터링\nconst filtered = articles.filter(article => {\n  const title = article.title || '';\n  const description = article.description || '';\n  const content = (title + ' ' + description).toLowerCase();\n  \n  return controversialKeywords.some(keyword => \n    content.includes(keyword)\n  );\n});\n\n// 최대 5개만 선택 (가장 최신순)\nconst selected = filtered.slice(0, 5);\n\nreturn selected.map(article => ({\n  json: article\n}));"
+      },
+      "id": "filter-controversial",
+      "name": "논란 뉴스 필터링",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const article = $input.item.json;\n\n// 뉴스 데이터 정리\nconst newsData = {\n  title: article.title || '',\n  description: article.description || '',\n  content: article.content || article.description || '',\n  url: article.url || '',\n  publishedAt: article.publishedAt || new Date().toISOString(),\n  source: article.source?.name || '알 수 없음',\n  imageUrl: article.urlToImage || ''\n};\n\nreturn {\n  json: newsData\n};"
+      },
+      "id": "prepare-data",
+      "name": "데이터 정리",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "model": "gpt-4",
+        "text": "={{ \"다음 뉴스를 바탕으로 30초 분량의 쇼츠 영상 스크립트를 작성해주세요.\\n\\n제목: \" + $json.title + \"\\n내용: \" + $json.description + \"\\n\\n요구사항:\\n1. 시청자의 관심을 끄는 강렬한 오프닝 (3초)\\n2. 핵심 내용 전달 (20초)\\n3. 임팩트 있는 마무리 (7초)\\n4. 구어체로 자연스럽게 작성\\n5. 총 글자수 150-200자 이내\\n\\n스크립트만 작성해주세요.\" }}",
+        "options": {}
+      },
+      "id": "generate-script",
+      "name": "AI 스크립트 생성",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.item.json;\nconst script = input.message?.content || input.text || '';\n\n// 스크립트에서 따옴표 제거 및 정리\nconst cleanScript = script\n  .replace(/^[\"']|[\"']$/g, '')\n  .trim();\n\nreturn {\n  json: {\n    ...input,\n    script: cleanScript,\n    scriptLength: cleanScript.length\n  }\n};"
+      },
+      "id": "clean-script",
+      "name": "스크립트 정리",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.elevenlabs.io/v1/text-to-speech/{{ $env.ELEVENLABS_VOICE_ID }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xi-api-key",
+              "value": "={{ $env.ELEVENLABS_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $json.script }}"
+            },
+            {
+              "name": "model_id",
+              "value": "eleven_multilingual_v2"
+            },
+            {
+              "name": "voice_settings",
+              "value": "{\"stability\": 0.5, \"similarity_boost\": 0.75}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "generate-voice",
+      "name": "음성 생성 (TTS)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "model": "dall-e-3",
+        "text": "={{ \"다음 뉴스 주제를 표현하는 시각적 이미지를 생성해주세요 (쇼츠 영상용, 세로 9:16 비율): \" + $json.title }}",
+        "options": {
+          "size": "1024x1792"
+        }
+      },
+      "id": "generate-image",
+      "name": "이미지 생성 (DALL-E)",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1450, 480]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.data[0].url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "download-image",
+      "name": "이미지 다운로드",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1650, 480]
+    },
+    {
+      "parameters": {
+        "jsCode": "const timestamp = Date.now();\nconst outputDir = '/home/user/NewsSearch/output';\nconst audioFile = `${outputDir}/audio_${timestamp}.mp3`;\nconst imageFile = `${outputDir}/image_${timestamp}.png`;\nconst videoFile = `${outputDir}/video_${timestamp}.mp4`;\n\n// FFmpeg 명령어 생성 (이미지 + 오디오 -> 비디오)\nconst ffmpegCommand = [\n  'ffmpeg',\n  '-loop 1',\n  `-i ${imageFile}`,\n  `-i ${audioFile}`,\n  '-c:v libx264',\n  '-tune stillimage',\n  '-c:a aac',\n  '-b:a 192k',\n  '-pix_fmt yuv420p',\n  '-shortest',\n  '-vf \"scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1\"',\n  '-t 30',\n  videoFile\n].join(' ');\n\nreturn {\n  json: {\n    audioFile,\n    imageFile,\n    videoFile,\n    ffmpegCommand,\n    newsTitle: $('prepare-data').item.json.title,\n    newsUrl: $('prepare-data').item.json.url,\n    timestamp\n  }\n};"
+      },
+      "id": "prepare-video-command",
+      "name": "비디오 합성 준비",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1850, 300]
+    },
+    {
+      "parameters": {
+        "command": "={{ $json.ffmpegCommand }}",
+        "options": {}
+      },
+      "id": "create-video",
+      "name": "비디오 생성 (FFmpeg)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [2050, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const videoFile = $json.videoFile;\nconst newsTitle = $json.newsTitle;\nconst newsUrl = $json.newsUrl;\nconst timestamp = $json.timestamp;\n\nreturn {\n  json: {\n    success: true,\n    videoPath: videoFile,\n    title: newsTitle,\n    sourceUrl: newsUrl,\n    createdAt: new Date(timestamp).toISOString(),\n    message: `쇼츠 영상이 성공적으로 생성되었습니다: ${videoFile}`\n  }\n};"
+      },
+      "id": "format-output",
+      "name": "결과 포맷팅",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2250, 300]
+    },
+    {
+      "parameters": {
+        "content": "## 워크플로우 개요\n\n이 워크플로우는 다음 단계로 뉴스 쇼츠를 자동 생성합니다:\n\n1. **뉴스 수집**: NewsAPI에서 한국 최신 뉴스 가져오기\n2. **필터링**: 논란이 되는 키워드가 포함된 뉴스만 선별\n3. **스크립트 생성**: AI로 30초 분량 쇼츠 스크립트 작성\n4. **음성 합성**: ElevenLabs TTS로 자연스러운 음성 생성\n5. **이미지 생성**: DALL-E로 뉴스 주제 관련 이미지 생성\n6. **비디오 합성**: FFmpeg로 이미지+음성 결합\n\n## 필요한 환경 변수\n\n- `NEWSAPI_KEY`: NewsAPI 키\n- `OPENAI_API_KEY`: OpenAI API 키\n- `ELEVENLABS_API_KEY`: ElevenLabs API 키\n- `ELEVENLABS_VOICE_ID`: 사용할 음성 ID\n\n## 출력\n\n생성된 영상은 `/output` 디렉토리에 저장됩니다.",
+        "height": 400,
+        "width": 350
+      },
+      "id": "note",
+      "name": "설명",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [240, 540]
+    }
+  ],
+  "connections": {
+    "매 6시간마다 실행": {
+      "main": [
+        [
+          {
+            "node": "뉴스 검색 (NewsAPI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "뉴스 검색 (NewsAPI)": {
+      "main": [
+        [
+          {
+            "node": "논란 뉴스 필터링",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "논란 뉴스 필터링": {
+      "main": [
+        [
+          {
+            "node": "데이터 정리",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "데이터 정리": {
+      "main": [
+        [
+          {
+            "node": "AI 스크립트 생성",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI 스크립트 생성": {
+      "main": [
+        [
+          {
+            "node": "스크립트 정리",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "스크립트 정리": {
+      "main": [
+        [
+          {
+            "node": "음성 생성 (TTS)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "이미지 생성 (DALL-E)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "음성 생성 (TTS)": {
+      "main": [
+        [
+          {
+            "node": "비디오 합성 준비",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "이미지 생성 (DALL-E)": {
+      "main": [
+        [
+          {
+            "node": "이미지 다운로드",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "이미지 다운로드": {
+      "main": [
+        [
+          {
+            "node": "비디오 합성 준비",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "비디오 합성 준비": {
+      "main": [
+        [
+          {
+            "node": "비디오 생성 (FFmpeg)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "비디오 생성 (FFmpeg)": {
+      "main": [
+        [
+          {
+            "node": "결과 포맷팅",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-12-09T00:00:00.000Z",
+  "versionId": "1"
+}
