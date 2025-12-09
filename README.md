@@ -1,425 +1,385 @@
-# 뉴스 쇼츠 자동 생성 워크플로우
+# 🎬 뉴스 쇼츠 자동 생성기
 
-최신 논란이 되는 뉴스를 자동으로 검색하고, AI를 활용하여 30초 분량의 쇼츠 영상을 자동 생성하는 n8n 워크플로우입니다.
+AI 기반으로 최신 뉴스를 분석하여 30초 분량의 유튜브 쇼츠 스크립트를 자동으로 생성하는 웹 애플리케이션입니다.
 
-## 주요 기능
+## ✨ 주요 기능
 
-- 📰 **자동 뉴스 수집**: NewsAPI를 통해 한국 최신 뉴스 자동 검색
-- 🔍 **스마트 필터링**: 논란 키워드를 포함한 이슈 뉴스만 선별
-- 🤖 **AI 스크립트 생성**: OpenAI GPT-4로 자연스러운 30초 쇼츠 스크립트 작성
-- 🎙️ **음성 합성**: ElevenLabs의 고품질 TTS로 자연스러운 한국어 음성 생성
-- 🎨 **이미지 생성**: DALL-E 3로 뉴스 주제에 맞는 시각 자료 생성
-- 🎬 **비디오 합성**: FFmpeg로 이미지와 음성을 결합하여 완성된 쇼츠 영상 생성
-- ⏰ **자동화**: 6시간마다 자동 실행 (설정 변경 가능)
+### 🎯 3가지 생성 모드
 
-## 워크플로우 구조
+1. **📰 오늘 뉴스 기반**
+   - SerpAPI로 최신 한국 뉴스 검색
+   - 논란/이슈가 되는 뉴스 자동 분석
+   - 뉴스 기반 30초 쇼츠 스크립트 생성
+
+2. **🎬 유튜브 급상승 기반**
+   - 유튜브에서 조회수가 높은 뉴스 쇼츠 분석
+   - 트렌드 분석을 통한 바이럴 요소 추출
+   - 급상승 트렌드 기반 스크립트 생성
+
+3. **🔥 뉴스 + 급상승 결합**
+   - 최신 뉴스와 유튜브 트렌드를 결합
+   - 최적화된 바이럴 콘텐츠 스크립트 생성
+   - 뉴스의 신뢰성 + 트렌드의 매력 결합
+
+### 🤖 AI 자동 생성
+
+- **스크립트**: GPT-4로 30초 분량의 자연스러운 한국어 스크립트 생성
+- **제목**: 클릭을 유도하는 영상 제목 3개 추천
+- **썸네일 문구**: 강렬한 임팩트를 주는 썸네일 텍스트 5개 제공
+- **이미지 프롬프트**: DALL-E 3로 썸네일 이미지 생성을 위한 프롬프트 제공
+
+### 🎙️ 추가 기능
+
+- **TTS 음성 생성**: ElevenLabs로 자연스러운 한국어 음성 합성
+- **썸네일 이미지**: DALL-E 3로 고품질 썸네일 이미지 생성
+- **전체 자동화**: 클릭 한 번으로 스크립트 + 음성 + 썸네일 한 번에 생성
+- **결과 다운로드**: 생성된 모든 결과를 JSON 파일로 저장
+
+## 🏗️ 프로젝트 구조
 
 ```
-┌─────────────────┐
-│  6시간마다 실행  │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  뉴스 API 호출  │
-│   (NewsAPI)     │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ 논란 뉴스 필터링 │
-│ (키워드 검색)    │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  AI 스크립트    │
-│     생성        │
-└────┬───────┬────┘
-     │       │
-     ▼       ▼
-┌─────┐   ┌─────┐
-│ TTS │   │이미지│
-│음성 │   │생성 │
-└──┬──┘   └──┬──┘
-   │         │
-   └────┬────┘
-        ▼
-   ┌─────────┐
-   │ 비디오  │
-   │  합성   │
-   └────┬────┘
-        ▼
-   ┌─────────┐
-   │  완료   │
-   └─────────┘
+NewsSearch/
+├── backend/              # Node.js + Express 백엔드
+│   ├── server.js         # 메인 서버 파일
+│   ├── package.json      # 의존성 관리
+│   └── .env.example      # 환경 변수 템플릿
+│
+├── frontend/             # 웹 프론트엔드
+│   ├── index.html        # 메인 HTML
+│   ├── style.css         # 스타일시트
+│   └── app.js            # 프론트엔드 로직
+│
+├── output/               # 생성된 파일 저장
+│   ├── voice_*.mp3       # TTS 음성 파일
+│   └── thumbnail_*.png   # 썸네일 이미지
+│
+├── workflows/            # (레거시) n8n 워크플로우
+└── scripts/              # 유틸리티 스크립트
 ```
 
-## 필수 요구사항
+## 🚀 빠른 시작
 
-### 1. n8n 설치
+### 1. 사전 요구사항
 
-```bash
-# Docker로 설치 (권장)
-docker run -it --rm \
-  --name n8n \
-  -p 5678:5678 \
-  -v ~/.n8n:/home/node/.n8n \
-  n8nio/n8n
+- Node.js 18+ 설치
+- API 키 발급 (아래 참조)
 
-# 또는 npm으로 설치
-npm install -g n8n
-```
+### 2. API 키 발급
 
-### 2. FFmpeg 설치
+#### SerpAPI (필수)
+- 사이트: https://serpapi.com/
+- 무료 플랜: 월 100회 검색
+- 뉴스 + 유튜브 검색에 사용
 
-```bash
-# Ubuntu/Debian
-sudo apt-get update
-sudo apt-get install ffmpeg
-
-# macOS
-brew install ffmpeg
-
-# Windows
-# https://ffmpeg.org/download.html 에서 다운로드
-```
-
-### 3. API 키 발급
-
-다음 서비스들의 API 키가 필요합니다:
-
-#### NewsAPI
-- 사이트: https://newsapi.org/
-- 무료 플랜: 월 1,000개 요청
-- 가입 후 API 키 발급
-
-#### OpenAI
+#### OpenAI (필수)
 - 사이트: https://platform.openai.com/
-- GPT-4 API 키 필요
-- DALL-E 3 이미지 생성 포함
-- 사용량 기반 과금
+- GPT-4 + DALL-E 3 사용
+- 스크립트 생성 및 이미지 생성
 
-#### ElevenLabs
+#### ElevenLabs (선택)
 - 사이트: https://elevenlabs.io/
-- 고품질 TTS 서비스
 - 무료 플랜: 월 10,000 글자
-- 한국어 음성 지원 확인 필요
+- TTS 음성 합성에 사용
 
-## 설치 및 설정
-
-### 1. 프로젝트 클론
+### 3. 설치 및 실행
 
 ```bash
-git clone <repository-url>
+# 1. 저장소 클론
+git clone https://github.com/yhoshing/NewsSearch.git
 cd NewsSearch
-```
 
-### 2. 환경 변수 설정
+# 2. 백엔드 설정
+cd backend
+npm install
 
-`.env.example` 파일을 `.env`로 복사하고 API 키를 입력합니다:
-
-```bash
+# 3. 환경 변수 설정
 cp .env.example .env
+# .env 파일을 편집하여 API 키 입력
+
+# 4. 서버 실행
+npm start
+# 또는 개발 모드로 실행 (nodemon)
+npm run dev
 ```
 
-`.env` 파일 편집:
+### 4. 브라우저에서 접속
+
+```
+http://localhost:3000
+```
+
+## ⚙️ 환경 변수 설정
+
+`backend/.env` 파일을 생성하고 다음 값을 설정하세요:
 
 ```env
-# NewsAPI 설정
-NEWSAPI_KEY=your_newsapi_key_here
+# 서버 포트
+PORT=3000
 
-# OpenAI 설정
+# SerpAPI (필수)
+SERPAPI_KEY=your_serpapi_key_here
+
+# OpenAI API (필수)
 OPENAI_API_KEY=your_openai_api_key_here
 
-# ElevenLabs 설정
+# ElevenLabs (TTS 사용시 필수)
 ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
-ELEVENLABS_VOICE_ID=your_preferred_voice_id
-
-# 출력 디렉토리
-OUTPUT_DIR=/home/user/NewsSearch/output
+ELEVENLABS_VOICE_ID=your_voice_id_here
 ```
 
-### 3. n8n에 워크플로우 임포트
+## 📖 사용 방법
 
-1. n8n 실행: `n8n start`
-2. 브라우저에서 `http://localhost:5678` 접속
-3. 우측 상단 메뉴 → **Import from File** 선택
-4. `workflows/news-shorts-workflow.json` 파일 선택
-5. 임포트 완료
+### 기본 사용법
 
-### 4. n8n에 환경 변수 설정
+1. **웹 인터페이스 접속**
+   - http://localhost:3000 접속
 
-n8n에서 환경 변수를 사용하는 방법:
+2. **생성 모드 선택**
+   - 📰 오늘 뉴스 기반
+   - 🎬 유튜브 급상승 기반
+   - 🔥 뉴스 + 급상승 결합
 
-**방법 1: Docker 환경 변수**
-```bash
-docker run -it --rm \
-  --name n8n \
-  -p 5678:5678 \
-  -e NEWSAPI_KEY=your_key \
-  -e OPENAI_API_KEY=your_key \
-  -e ELEVENLABS_API_KEY=your_key \
-  -e ELEVENLABS_VOICE_ID=your_voice_id \
-  -v ~/.n8n:/home/node/.n8n \
-  n8nio/n8n
-```
+3. **결과 확인**
+   - 30초 스크립트
+   - 추천 제목 3개
+   - 썸네일 문구 5개
+   - DALL-E 이미지 프롬프트
 
-**방법 2: n8n 설정 파일**
+4. **추가 기능 사용**
+   - 🎙️ 음성 생성 버튼 클릭
+   - 🎨 썸네일 이미지 생성 버튼 클릭
+   - ⚡ 전체 자동 생성 (한 번에 모두 생성)
 
-`~/.n8n/config` 파일 생성:
-```json
-{
-  "env": {
-    "NEWSAPI_KEY": "your_key",
-    "OPENAI_API_KEY": "your_key",
-    "ELEVENLABS_API_KEY": "your_key",
-    "ELEVENLABS_VOICE_ID": "your_voice_id"
-  }
-}
-```
+### API 엔드포인트
 
-### 5. 워크플로우 활성화
-
-1. n8n 워크플로우 편집 화면에서
-2. 우측 상단 **Inactive** 버튼 클릭
-3. **Active**로 변경
-
-## 사용 방법
-
-### 자동 실행
-
-워크플로우를 활성화하면 6시간마다 자동으로 실행됩니다.
-
-### 수동 실행
-
-1. n8n 워크플로우 편집 화면에서
-2. 좌측 상단 **Execute Workflow** 버튼 클릭
-3. 실행 결과 확인
-
-### 생성된 영상 확인
-
-생성된 쇼츠 영상은 `output/` 디렉토리에 저장됩니다:
+백엔드 API를 직접 호출할 수도 있습니다:
 
 ```bash
-ls -lh output/
-# video_1702123456789.mp4
-# video_1702234567890.mp4
+# 뉴스 기반 스크립트 생성
+curl -X POST http://localhost:3000/api/generate/news
+
+# 유튜브 급상승 기반
+curl -X POST http://localhost:3000/api/generate/youtube
+
+# 결합 모드
+curl -X POST http://localhost:3000/api/generate/mixed
+
+# TTS 음성 생성
+curl -X POST http://localhost:3000/api/generate/voice \
+  -H "Content-Type: application/json" \
+  -d '{"script": "여기에 스크립트 입력"}'
+
+# 썸네일 이미지 생성
+curl -X POST http://localhost:3000/api/generate/thumbnail \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "dramatic news thumbnail"}'
+
+# 전체 자동화
+curl -X POST http://localhost:3000/api/generate/complete \
+  -H "Content-Type: application/json" \
+  -d '{"mode": "mixed"}'
 ```
 
-## 커스터마이징
+## 💰 비용 예상
 
-### 실행 주기 변경
-
-워크플로우에서 "매 6시간마다 실행" 노드를 클릭하고 간격을 조정합니다:
-- 매일 1회: `hours: 24`
-- 매일 2회: `hours: 12`
-- 매시간: `hours: 1`
-
-### 논란 키워드 수정
-
-"논란 뉴스 필터링" 노드의 코드에서 `controversialKeywords` 배열을 수정합니다:
-
-```javascript
-const controversialKeywords = [
-  '논란', '갈등', '비판', '반발', // 기본 키워드
-  '충격', '폭로', '사과',         // 추가 키워드
-  // 여기에 원하는 키워드 추가
-];
-```
-
-### 영상 길이 조정
-
-"AI 스크립트 생성" 노드에서 프롬프트를 수정합니다:
-
-```javascript
-// 30초 -> 60초로 변경
-"요구사항:\n1. 시청자의 관심을 끄는 강렬한 오프닝 (5초)\n2. 핵심 내용 전달 (45초)\n3. 임팩트 있는 마무리 (10초)\n4. 구어체로 자연스럽게 작성\n5. 총 글자수 300-400자 이내"
-```
-
-### 비디오 해상도 변경
-
-"비디오 합성 준비" 노드에서 FFmpeg 명령어의 해상도를 조정합니다:
-
-```javascript
-// 1080x1920 (세로) -> 1920x1080 (가로)로 변경
-'-vf \"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1\"'
-```
-
-### AI 모델 변경
-
-**OpenAI 모델 변경**:
-- "AI 스크립트 생성" 노드에서 model 선택
-- `gpt-4` → `gpt-4-turbo` 또는 `gpt-3.5-turbo`
-
-**이미지 생성 모델 변경**:
-- DALL-E 대신 Stability AI 사용 가능
-- HTTP Request 노드로 Stability AI API 호출
-
-## 비용 예상
-
-### API 사용 비용 (월 100개 쇼츠 생성 기준)
+### API 사용 비용 (월 100개 쇼츠 기준)
 
 | 서비스 | 사용량 | 예상 비용 |
 |--------|--------|-----------|
-| NewsAPI | ~500 요청 | 무료 (무료 플랜 내) |
+| SerpAPI | ~200회 검색 | $50 (Starter 플랜) |
 | OpenAI GPT-4 | ~100 요청 | $3-5 |
 | DALL-E 3 | ~100 이미지 | $10-12 |
 | ElevenLabs | ~20,000 글자 | $5 (Starter 플랜) |
-| **합계** | | **$18-22/월** |
+| **합계** | | **$68-72/월** |
 
-무료 플랜 활용:
-- NewsAPI: 월 1,000 요청까지 무료
-- ElevenLabs: 월 10,000 글자까지 무료
-- OpenAI: 크레딧 제공 (신규 가입시)
+### 무료 플랜 활용
 
-## 트러블슈팅
+- **SerpAPI**: 월 100회까지 무료 (뉴스 + 유튜브 각 50회)
+- **ElevenLabs**: 월 10,000 글자까지 무료 (약 50개 쇼츠)
+- **OpenAI**: 신규 가입시 크레딧 제공
 
-### 문제: 뉴스가 검색되지 않음
+무료 플랜만 사용하면 월 50개 정도의 쇼츠를 무료로 생성할 수 있습니다!
+
+## 🎨 스크린샷
+
+### 메인 화면
+3가지 생성 모드 버튼이 있는 깔끔한 다크 테마 UI
+
+### 결과 화면
+- 30초 스크립트 (복사 기능)
+- 추천 제목 3개
+- 썸네일 문구 5개 (그리드 형식)
+- DALL-E 이미지 프롬프트
+- 추가 기능 버튼들
+
+## 🔧 커스터마이징
+
+### 스크립트 톤 변경
+
+`backend/server.js`의 `generateShortsScript` 함수에서 `systemPrompt` 수정:
+
+```javascript
+const systemPrompt = `
+당신은 한국의 인기 유튜브 뉴스 쇼츠 채널의 메인 작가입니다.
+
+**톤 변경 예시:**
+- 진지한 뉴스 앵커 톤
+- 친근한 유튜버 톤
+- 전문가 해설자 톤
+...
+`;
+```
+
+### 뉴스 검색 키워드 변경
+
+`backend/server.js`의 `fetchNewsWithSerp` 함수에서 검색어 수정:
+
+```javascript
+const url =
+  `https://serpapi.com/search?` +
+  `engine=google_news` +
+  `&q=한국 뉴스 OR 속보 OR 논란` + // 여기 수정
+  `&gl=kr` +
+  `&hl=ko` +
+  `&api_key=${serpKey}`;
+```
+
+### 영상 길이 변경
+
+`systemPrompt`에서 글자 수 조정:
+
+```javascript
+// 30초 (250-350자) -> 60초 (500-700자)로 변경
+- 30초 분량(약 250-350자)의 한국어 쇼츠 스크립트 작성
++ 60초 분량(약 500-700자)의 한국어 쇼츠 스크립트 작성
+```
+
+## 🐛 트러블슈팅
+
+### 문제: SerpAPI 검색 결과가 없음
 
 **해결책**:
-- NewsAPI 키가 올바른지 확인
-- API 할당량 초과 여부 확인
-- NewsAPI 대시보드에서 사용량 확인
+```bash
+# API 키 확인
+curl "https://serpapi.com/search?engine=google&q=test&api_key=YOUR_KEY"
 
-### 문제: 음성이 생성되지 않음
+# 할당량 확인
+https://serpapi.com/dashboard
+```
+
+### 문제: OpenAI API 오류
+
+**해결책**:
+- API 키 권한 확인
+- GPT-4 접근 권한 확인
+- 크레딧 잔액 확인
+
+### 문제: CORS 오류
+
+**해결책**:
+프론트엔드와 백엔드를 같은 도메인에서 실행하거나, `backend/server.js`에서 CORS 설정 확인:
+
+```javascript
+app.use(cors({
+  origin: 'http://localhost:3000',
+  credentials: true
+}));
+```
+
+### 문제: TTS 음성이 생성되지 않음
 
 **해결책**:
 - ElevenLabs API 키 확인
 - Voice ID가 올바른지 확인
-- ElevenLabs 대시보드에서 사용 가능한 음성 목록 확인
 - 한국어 지원 음성인지 확인
 
-### 문제: FFmpeg 오류
+## 🚀 고급 기능 (향후 계획)
 
-**해결책**:
-```bash
-# FFmpeg 설치 확인
-ffmpeg -version
+### 1. 멀티 채널 관리
+- CH001 ~ CH030 채널별 프리셋 저장
+- 채널별 톤/스타일 설정
+- 채널별 생성 기록 추적
 
-# 권한 확인
-chmod +x /usr/bin/ffmpeg
+### 2. YouTube 자동 업로드
+- YouTube Data API 통합
+- 생성된 영상 자동 업로드
+- 제목/설명/태그 자동 설정
 
-# 출력 디렉토리 권한 확인
-chmod 755 output/
-```
+### 3. FFmpeg 비디오 합성
+- 이미지 + 음성 자동 합성
+- 자막 자동 생성 및 오버레이
+- 배경 음악 추가
 
-### 문제: 환경 변수를 찾을 수 없음
+### 4. 분석 대시보드
+- 생성된 콘텐츠 통계
+- API 사용량 모니터링
+- 비용 트래킹
 
-**해결책**:
-- n8n 재시작
-- Docker 컨테이너 재시작
-- 환경 변수 설정 방법 재확인
+### 5. 배치 생성
+- 한 번에 여러 개 스크립트 생성
+- 스케줄 기반 자동 생성
+- 큐 시스템으로 순차 처리
 
-### 문제: 이미지 생성 실패
+## 📚 기술 스택
 
-**해결책**:
-- OpenAI API 키 확인
-- DALL-E 3 접근 권한 확인
-- 프롬프트가 너무 길지 않은지 확인
-- 콘텐츠 정책 위반 여부 확인
+### 백엔드
+- Node.js 18+
+- Express.js
+- OpenAI API (GPT-4, DALL-E 3)
+- SerpAPI (뉴스/유튜브 검색)
+- ElevenLabs API (TTS)
 
-## 대체 방안
+### 프론트엔드
+- Vanilla JavaScript (프레임워크 없음)
+- Modern CSS (Grid, Flexbox)
+- Fetch API
 
-### NewsAPI 대신 다른 뉴스 소스
+### 개발 도구
+- nodemon (개발 모드)
+- dotenv (환경 변수)
 
-**Google News RSS**:
-```javascript
-// HTTP Request 노드 URL
-https://news.google.com/rss/search?q=논란&hl=ko&gl=KR&ceid=KR:ko
-```
-
-**네이버 뉴스 API**:
-- https://developers.naver.com/
-- 네이버 검색 API 활용
-
-### ElevenLabs 대신 다른 TTS
-
-**Google Cloud TTS**:
-```bash
-# gcloud 설치 후
-gcloud auth application-default login
-```
-
-**Azure Cognitive Services**:
-- https://azure.microsoft.com/ko-kr/services/cognitive-services/text-to-speech/
-
-**무료 대안 - gTTS (Google Text-to-Speech)**:
-```python
-# Python 스크립트 노드 사용
-from gtts import gTTS
-tts = gTTS(text='스크립트 내용', lang='ko')
-tts.save('output.mp3')
-```
-
-## 고급 기능
-
-### YouTube 자동 업로드
-
-YouTube Data API를 사용하여 생성된 영상을 자동으로 업로드할 수 있습니다:
-
-1. Google Cloud Console에서 YouTube Data API v3 활성화
-2. OAuth 2.0 인증 설정
-3. n8n의 YouTube 노드 추가
-4. 워크플로우 끝에 연결
-
-### 자막 추가
-
-FFmpeg로 자막을 추가할 수 있습니다:
-
-```javascript
-// 자막 생성
-const subtitles = generateSubtitles(script);
-
-// FFmpeg 명령에 자막 추가
--vf "subtitles=subtitles.srt:force_style='FontSize=24,PrimaryColour=&HFFFFFF'"
-```
-
-### 배경 음악 추가
-
-```javascript
-// FFmpeg 명령에 배경음악 추가
--i background_music.mp3 -filter_complex "[1:a]volume=0.2[bg];[0:a][bg]amix=inputs=2[a]" -map 0:v -map "[a]"
-```
-
-### 여러 이미지/클립 사용
-
-정적 이미지 대신 여러 이미지를 슬라이드쇼로 표시:
-
-```javascript
-ffmpeg -loop 1 -t 10 -i image1.jpg \
-       -loop 1 -t 10 -i image2.jpg \
-       -loop 1 -t 10 -i image3.jpg \
-       -i audio.mp3 \
-       -filter_complex "[0:v][1:v][2:v]concat=n=3:v=1:a=0[v]" \
-       -map "[v]" -map 3:a output.mp4
-```
-
-## 라이센스
-
-MIT License
-
-## 기여
+## 🤝 기여
 
 Pull Request를 환영합니다!
 
-## 문의
+### 기여 방법
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 📄 라이센스
+
+MIT License - 자유롭게 사용하세요!
+
+## 📞 문의
 
 이슈가 있으시면 GitHub Issues에 등록해주세요.
 
-## 업데이트 로그
+## 🙏 감사의 말
+
+이 프로젝트는 다음 서비스들을 사용합니다:
+
+- [SerpAPI](https://serpapi.com/) - 뉴스 및 유튜브 검색
+- [OpenAI](https://openai.com/) - GPT-4 및 DALL-E 3
+- [ElevenLabs](https://elevenlabs.io/) - TTS 음성 합성
+
+## 📈 버전 히스토리
+
+### v2.0.0 (2025-12-09)
+- 🎉 웹 애플리케이션으로 완전 재작성
+- ✨ SerpAPI 통합 (NewsAPI 대체)
+- 🚀 3가지 생성 모드 추가
+- 🎨 DALL-E 3 썸네일 생성 추가
+- ⚡ 전체 자동화 기능 추가
+- 💅 현대적인 다크 테마 UI
 
 ### v1.0.0 (2025-12-09)
-- 초기 릴리스
-- 기본 워크플로우 구현
-- 뉴스 검색, AI 스크립트, TTS, 이미지 생성, 비디오 합성 기능
+- 초기 릴리스 (n8n 워크플로우)
+- 기본 뉴스 검색 및 스크립트 생성
 
-## 향후 계획
+---
 
-- [ ] YouTube 자동 업로드 기능
-- [ ] 자막 자동 생성
-- [ ] 배경 음악 자동 추가
-- [ ] 다양한 영상 스타일 템플릿
-- [ ] 웹 대시보드 (생성된 영상 관리)
-- [ ] 성능 분석 (조회수, 참여도 추적)
-- [ ] 다국어 지원
+Made with ❤️ by NewsSearch Team
