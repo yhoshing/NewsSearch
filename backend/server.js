@@ -41,11 +41,11 @@ async function fetchNewsWithSerp() {
     throw new Error("SERPAPI_KEY가 설정되지 않았습니다.");
   }
 
-  // Google News 검색
+  // 흥미로운 뉴스 검색 (논란, 사건, 이슈 중심)
   const url =
     `https://serpapi.com/search?` +
     `engine=google_news` +
-    `&q=한국 뉴스 OR 속보 OR 논란` +
+    `&q=논란 OR 사건 OR 이슈 OR 화제 OR 충격 OR 반전 OR 폭로` +
     `&gl=kr` +
     `&hl=ko` +
     `&api_key=${serpKey}`;
@@ -58,14 +58,39 @@ async function fetchNewsWithSerp() {
     return [];
   }
 
-  // 상위 10개 뉴스 정리
-  return data.news_results.slice(0, 10).map((article) => ({
-    title: article.title || "",
-    snippet: article.snippet || "",
-    source: article.source?.name || "알 수 없음",
-    link: article.link || "",
-    date: article.date || "",
-  }));
+  // 제외할 출처 (딱딱한 공식 기관/프로그램)
+  const excludedSources = [
+    '뉴스데스크',
+    '오늘의 주요뉴스',
+    '한국은행',
+    '통계청',
+    '기상청',
+    '정부',
+    '국회',
+    '청와대',
+    '행정안전부',
+    '보도자료'
+  ];
+
+  // 필터링 및 정리
+  const filteredNews = data.news_results
+    .filter((article) => {
+      const source = article.source?.name || "";
+      // 제외 출처에 포함되지 않은 것만 선택
+      return !excludedSources.some(excluded =>
+        source.includes(excluded)
+      );
+    })
+    .slice(0, 10)
+    .map((article) => ({
+      title: article.title || "",
+      snippet: article.snippet || "",
+      source: article.source?.name || "알 수 없음",
+      link: article.link || "",
+      date: article.date || "",
+    }));
+
+  return filteredNews;
 }
 
 // ─────────────────────────────────────────────────────────
