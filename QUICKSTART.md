@@ -23,7 +23,29 @@
 4. Voices 메뉴에서 Voice ID 확인 (한국어 지원 음성)
 5. **무료 플랜**: 월 10,000 글자
 
-## 2단계: 설치 및 환경 설정 (2분)
+## 2단계: FFmpeg 설치 (선택 - 비디오 생성시 필요)
+
+완전 자동 쇼츠 생성 기능을 사용하려면 FFmpeg가 필요합니다:
+
+**Windows:**
+```bash
+# Chocolatey로 설치 (권장)
+choco install ffmpeg
+
+# 또는 https://ffmpeg.org/download.html 에서 다운로드
+```
+
+**Mac:**
+```bash
+brew install ffmpeg
+```
+
+**확인:**
+```bash
+ffmpeg -version
+```
+
+## 3단계: 설치 및 환경 설정 (2분)
 
 ```bash
 # 백엔드 디렉토리로 이동
@@ -36,7 +58,7 @@ npm install
 cp .env.example .env
 ```
 
-## 3단계: API 키 입력 (1분)
+## 4단계: API 키 입력 (1분)
 
 `backend/.env` 파일을 열고 API 키를 입력하세요:
 
@@ -54,7 +76,7 @@ ELEVENLABS_API_KEY=your_actual_elevenlabs_key_here
 ELEVENLABS_VOICE_ID=your_voice_id_here
 ```
 
-## 4단계: 서버 실행 (1분)
+## 5단계: 서버 실행 (1분)
 
 ```bash
 # 백엔드 디렉토리에서

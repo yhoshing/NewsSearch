@@ -332,6 +332,88 @@ body {
 }
 
 /* ========================================
+   뉴스 출처
+   ======================================== */
+
+.sources-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.source-item {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  border-left: 3px solid var(--accent-blue);
+  transition: all 0.2s;
+}
+
+.source-item:hover {
+  background: var(--bg-tertiary);
+  transform: translateX(4px);
+}
+
+.source-number {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-blue);
+  color: white;
+  border-radius: 50%;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+.source-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.source-title {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.source-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.source-name {
+  color: var(--accent-blue);
+  font-weight: 500;
+}
+
+.source-date {
+  color: var(--text-muted);
+}
+
+.source-link {
+  color: var(--accent-blue);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.source-link:hover {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+/* ========================================
    에러 표시
    ======================================== */
 

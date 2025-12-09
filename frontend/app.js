@@ -195,6 +195,31 @@ function displayResult(result) {
   // 이미지 프롬프트
   elements.imagePromptContent.textContent =
     result.imagePrompt || "이미지 프롬프트 없음";
+
+  // 뉴스 출처 표시
+  const sourcesBox = document.getElementById("sourcesBox");
+  const sourcesContent = document.getElementById("sourcesContent");
+
+  if (result.sources && result.sources.length > 0) {
+    sourcesBox.style.display = "block";
+    sourcesContent.innerHTML = result.sources
+      .map((source, index) => `
+        <div class="source-item">
+          <div class="source-number">${index + 1}</div>
+          <div class="source-info">
+            <div class="source-title">${source.title}</div>
+            <div class="source-meta">
+              <span class="source-name">${source.source}</span>
+              ${source.date ? `<span class="source-date">${source.date}</span>` : ''}
+            </div>
+            ${source.link ? `<a href="${source.link}" target="_blank" class="source-link">원문 보기 →</a>` : ''}
+          </div>
+        </div>
+      `)
+      .join("");
+  } else {
+    sourcesBox.style.display = "none";
+  }
 }
 
 // ========================================
@@ -277,7 +302,7 @@ async function generateComplete() {
   }
 
   try {
-    showLoading("⚡ 전체 자동 생성 중 (스크립트 + 음성 + 썸네일)...");
+    showLoading("🎬 완전 자동 쇼츠 생성 중 (스크립트 + 음성 + 이미지 + 비디오)...");
 
     const result = await callAPI("/generate/complete", "POST", {
       mode: currentMode,
@@ -307,8 +332,17 @@ async function generateComplete() {
       });
     }
 
+    if (result.video) {
+      addGeneratedFile({
+        type: "video",
+        filename: result.video.filename,
+        filepath: result.video.filepath,
+        size: result.video.size,
+      });
+    }
+
     showResult();
-    showToast("✅ 전체 자동 생성 완료!");
+    showToast("✅ 완전 자동 쇼츠 생성 완료! 비디오 파일이 준비되었습니다!");
   } catch (error) {
     console.error("전체 자동 생성 오류:", error);
     showError(`전체 자동 생성 실패: ${error.message}`);
@@ -327,13 +361,25 @@ function addGeneratedFile(file) {
   fileItem.className = "file-item";
 
   const sizeInKB = (file.size / 1024).toFixed(2);
+  const sizeInMB = (file.size / 1024 / 1024).toFixed(2);
+
+  // 파일 타입별 아이콘과 표시
+  let icon = "📄";
+  let sizeText = `${sizeInKB} KB`;
+
+  if (file.type === "audio") {
+    icon = "🎙️";
+  } else if (file.type === "image") {
+    icon = "🖼️";
+  } else if (file.type === "video") {
+    icon = "🎬";
+    sizeText = file.size > 1024 * 1024 ? `${sizeInMB} MB` : `${sizeInKB} KB`;
+  }
 
   fileItem.innerHTML = `
     <div class="file-info">
-      <span class="file-name">${file.type === "audio" ? "🎙️" : "🖼️"} ${
-    file.filename
-  }</span>
-      <span class="file-size">${sizeInKB} KB</span>
+      <span class="file-name">${icon} ${file.filename}</span>
+      <span class="file-size">${sizeText}</span>
     </div>
     <a href="/output/${file.filename}" class="btn-download" download>다운로드</a>
   `;

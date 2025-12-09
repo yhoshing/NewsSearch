@@ -10,6 +10,10 @@ import OpenAI from "openai";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs/promises";
+import { exec } from "child_process";
+import { promisify } from "util";
+
+const execPromise = promisify(exec);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -210,6 +214,16 @@ ${youtubeText}
     // 파싱
     const parsed = parseGPTResponse(rawText);
 
+    // 뉴스 출처 정보 추가
+    const sources = newsList && newsList.length > 0
+      ? newsList.slice(0, 5).map(n => ({
+          title: n.title,
+          source: n.source,
+          link: n.link,
+          date: n.date
+        }))
+      : [];
+
     return {
       success: true,
       mode,
@@ -217,6 +231,7 @@ ${youtubeText}
       titles: parsed.titles,
       thumbnails: parsed.thumbnails,
       imagePrompt: parsed.imagePrompt,
+      sources: sources,
       raw: rawText,
     };
   } catch (error) {
@@ -364,6 +379,61 @@ async function generateThumbnailWithDALLE(prompt) {
   } catch (error) {
     console.error("DALL-E 생성 오류:", error);
     throw new Error(`DALL-E 생성 실패: ${error.message}`);
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// 7. FFmpeg로 비디오 합성 (이미지 + 음성 → MP4)
+// ─────────────────────────────────────────────────────────
+async function createVideoWithFFmpeg(imagePath, audioPath) {
+  try {
+    const timestamp = Date.now();
+    const outputFilename = `shorts_${timestamp}.mp4`;
+    const outputPath = path.join(__dirname, "../output", outputFilename);
+
+    // 출력 디렉토리 확인
+    await fs.mkdir(path.join(__dirname, "../output"), { recursive: true });
+
+    // FFmpeg 명령어
+    // -loop 1: 이미지 반복
+    // -i image: 입력 이미지
+    // -i audio: 입력 오디오
+    // -c:v libx264: H.264 비디오 코덱
+    // -tune stillimage: 정지 이미지 최적화
+    // -c:a aac: AAC 오디오 코덱
+    // -b:a 192k: 오디오 비트레이트
+    // -pix_fmt yuv420p: 호환성을 위한 픽셀 포맷
+    // -shortest: 가장 짧은 스트림에 맞춤 (오디오 길이)
+    // -vf scale: 1080x1920 세로 영상 (쇼츠용)
+    const ffmpegCommand = `ffmpeg -loop 1 -i "${imagePath}" -i "${audioPath}" \
+      -c:v libx264 -tune stillimage -c:a aac -b:a 192k -pix_fmt yuv420p \
+      -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1" \
+      -shortest -t 60 -y "${outputPath}"`;
+
+    console.log("🎬 FFmpeg 비디오 합성 시작...");
+    console.log(`명령어: ${ffmpegCommand}`);
+
+    // FFmpeg 실행
+    const { stdout, stderr } = await execPromise(ffmpegCommand);
+
+    if (stderr && !stderr.includes('frame=')) {
+      console.log("FFmpeg stderr:", stderr);
+    }
+
+    // 파일 크기 확인
+    const stats = await fs.stat(outputPath);
+
+    console.log("✅ FFmpeg 비디오 합성 완료");
+
+    return {
+      success: true,
+      filename: outputFilename,
+      filepath: outputPath,
+      size: stats.size,
+    };
+  } catch (error) {
+    console.error("❌ FFmpeg 비디오 합성 오류:", error);
+    throw new Error(`비디오 합성 실패: ${error.message}`);
   }
 }
 
@@ -567,13 +637,21 @@ app.post("/api/generate/complete", async (req, res) => {
       scriptResult.imagePrompt
     );
 
-    console.log("✅ 전체 자동화 완료!");
+    // 4단계: 비디오 합성
+    console.log("🎬 비디오 합성 중...");
+    const videoResult = await createVideoWithFFmpeg(
+      thumbnailResult.filepath,
+      voiceResult.filepath
+    );
+
+    console.log("✅ 전체 자동화 완료! (스크립트 + 음성 + 이미지 + 비디오)");
 
     res.json({
       success: true,
       script: scriptResult,
       voice: voiceResult,
       thumbnail: thumbnailResult,
+      video: videoResult,
     });
   } catch (error) {
     console.error("❌ 전체 자동화 오류:", error);
