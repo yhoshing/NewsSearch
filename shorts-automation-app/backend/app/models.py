@@ -13,6 +13,7 @@ class Channel(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(200), nullable=False)
+    category = Column(String(100), nullable=False)  # 채널 카테고리 (5개 중 선택)
     topic = Column(String(500), nullable=False)  # 채널 주제
     description = Column(Text)
     target_audience = Column(String(200))  # 타겟 청중
@@ -20,10 +21,15 @@ class Channel(Base):
     keywords = Column(JSON)  # 키워드 리스트
 
     # 설정
-    schedule_hours = Column(Integer, default=6)  # 실행 주기
+    schedule_hours = Column(Integer, default=6)  # 실행 주기 (시간)
+    schedule_time = Column(String(10))  # 시작 시간 (예: "09:00", "14:30")
     auto_upload = Column(Boolean, default=False)  # 자동 업로드 여부
     video_duration = Column(Integer, default=60)  # 영상 길이 (초)
     privacy_status = Column(String(20), default="private")  # YouTube 공개 상태
+
+    # Google Sheets 연동
+    google_sheet_id = Column(String(200))  # 구글시트 ID
+    save_to_sheets = Column(Boolean, default=False)  # 시트 저장 여부
 
     # 템플릿
     creatomate_template_id = Column(String(100))

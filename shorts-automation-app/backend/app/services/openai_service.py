@@ -15,25 +15,33 @@ class OpenAIService:
     def generate_ideas(
         self,
         topic: str,
+        category: str = None,
         target_audience: str = None,
         content_style: str = None,
         num_ideas: int = 5
     ) -> List[Dict[str, Any]]:
         """
         채널 주제를 기반으로 쇼츠 아이디어 생성
+        카테고리가 있으면 최적화된 프롬프트 사용
         """
-        prompt = f"""당신은 크리에이티브한 쇼츠 영상 아이디어 생성자입니다.
+        # 카테고리별 최적화된 프롬프트 사용
+        if category:
+            from ..categories import get_category_prompt
+            prompt = get_category_prompt(category, num_ideas)
+        else:
+            # 기본 프롬프트
+            prompt = f"""당신은 크리에이티브한 쇼츠 영상 아이디어 생성자입니다.
 
 채널 주제: {topic}
 """
 
-        if target_audience:
-            prompt += f"타겟 청중: {target_audience}\n"
+            if target_audience:
+                prompt += f"타겟 청중: {target_audience}\n"
 
-        if content_style:
-            prompt += f"콘텐츠 스타일: {content_style}\n"
+            if content_style:
+                prompt += f"콘텐츠 스타일: {content_style}\n"
 
-        prompt += f"""
+            prompt += f"""
 요구사항:
 1. 시청자의 관심을 끄는 강렬한 주제
 2. 30-60초 분량의 짧은 영상에 적합
