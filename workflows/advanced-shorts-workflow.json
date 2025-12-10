@@ -1,0 +1,775 @@
+{
+  "name": "플로이델의 자동으로 영상 만들기",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "자동화일정",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [100, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "로그",
+        "range": "A:Z",
+        "options": {}
+      },
+      "id": "read-log",
+      "name": "로그관리",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 3,
+      "position": [300, 200]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "컨셉",
+        "range": "A:Z",
+        "options": {}
+      },
+      "id": "read-concept",
+      "name": "컨셉",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 3,
+      "position": [500, 200]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "설정",
+        "range": "A:B",
+        "options": {}
+      },
+      "id": "mode-check",
+      "name": "모드체크",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 3,
+      "position": [700, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 아이디어 생성 모드 체크\nconst settings = $input.item.json;\nconst mode = settings.mode || 'generate';\n\nif (mode === 'generate') {\n  return { json: { mode: 'generate', action: 'create_new_ideas' } };\n} else if (mode === 'reuse') {\n  return { json: { mode: 'reuse', action: 'load_existing_ideas' } };\n}\n\nreturn { json: { mode: 'generate', action: 'create_new_ideas' } };"
+      },
+      "id": "check-mode-logic",
+      "name": "모드체크로직",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.mode }}",
+              "operation": "equals",
+              "value2": "generate"
+            }
+          ]
+        }
+      },
+      "id": "if-generate-mode",
+      "name": "생성모드?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1100, 200]
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "model": "gpt-4",
+        "text": "={{ \"당신은 크리에이티브한 쇼츠 영상 아이디어 생성자입니다.\\n\\n컨셉: \" + $('컨셉').item.json.concept + \"\\n\\n요구사항:\\n1. 시청자의 관심을 끄는 강렬한 주제\\n2. 30-60초 분량의 짧은 영상에 적합\\n3. 바이럴 가능성이 높은 콘텐츠\\n4. 명확한 메시지 전달\\n\\n5개의 아이디어를 다음 JSON 형식으로 생성해주세요:\\n[\\n  {\\n    \\\"title\\\": \\\"제목\\\",\\n    \\\"hook\\\": \\\"오프닝 문구\\\",\\n    \\\"content\\\": \\\"핵심 내용\\\",\\n    \\\"cta\\\": \\\"행동 유도 문구\\\",\\n    \\\"keywords\\\": [\\\"키워드1\\\", \\\"키워드2\\\"]\\n  }\\n]\" }}",
+        "options": {}
+      },
+      "id": "gpt-generate-ideas",
+      "name": "GPT1 - 아이디어생각하기",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1300, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "// GPT 응답 파싱 및 구조화\nconst response = $input.item.json.message?.content || $input.item.json.text || '';\n\nlet ideas = [];\ntry {\n  // JSON 파싱 시도\n  const jsonMatch = response.match(/\\[.*\\]/s);\n  if (jsonMatch) {\n    ideas = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  // 파싱 실패시 기본 구조 생성\n  ideas = [{\n    title: '아이디어 파싱 실패',\n    hook: response.substring(0, 100),\n    content: response,\n    cta: '자세히 알아보기',\n    keywords: ['미분류']\n  }];\n}\n\n// 각 아이디어를 개별 아이템으로 반환\nreturn ideas.map((idea, index) => ({\n  json: {\n    ...idea,\n    id: `idea_${Date.now()}_${index}`,\n    createdAt: new Date().toISOString(),\n    status: 'pending'\n  }\n}));"
+      },
+      "id": "parse-ideas",
+      "name": "생각도구 - 구조화",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 100]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "아이디어보관함",
+        "columns": {
+          "mappings": [
+            {
+              "column": "ID",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "column": "제목",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "column": "오프닝",
+              "value": "={{ $json.hook }}"
+            },
+            {
+              "column": "내용",
+              "value": "={{ $json.content }}"
+            },
+            {
+              "column": "CTA",
+              "value": "={{ $json.cta }}"
+            },
+            {
+              "column": "키워드",
+              "value": "={{ $json.keywords.join(', ') }}"
+            },
+            {
+              "column": "생성일",
+              "value": "={{ $json.createdAt }}"
+            },
+            {
+              "column": "상태",
+              "value": "={{ $json.status }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "save-ideas",
+      "name": "아이디어아카이브",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 3,
+      "position": [1700, 100]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "아이디어보관함",
+        "range": "A:Z",
+        "options": {
+          "rangeDefinition": "specifyRange",
+          "range": "A2:Z100"
+        }
+      },
+      "id": "load-ideas",
+      "name": "아이디어",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 3,
+      "position": [1300, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 아이디어 선택 로직\nconst ideas = $input.all();\nconst maxVideos = parseInt($env.MAX_VIDEOS_PER_RUN || '3');\n\n// 상태가 'pending'인 아이디어만 선택\nconst pendingIdeas = ideas.filter(item => \n  item.json.status === 'pending' || item.json['상태'] === 'pending'\n);\n\n// 최대 개수만큼 선택\nconst selected = pendingIdeas.slice(0, maxVideos);\n\nreturn selected;"
+      },
+      "id": "select-ideas",
+      "name": "반수설정",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 300]
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "model": "gpt-4",
+        "text": "={{ \"선택된 아이디어를 쇼츠 영상 스크립트로 변환해주세요.\\n\\n제목: \" + ($json.title || $json['제목']) + \"\\n오프닝: \" + ($json.hook || $json['오프닝']) + \"\\n내용: \" + ($json.content || $json['내용']) + \"\\nCTA: \" + ($json.cta || $json['CTA']) + \"\\n\\n요구사항:\\n1. 30-60초 분량\\n2. 구어체로 자연스럽게\\n3. 시청자와의 공감대 형성\\n4. 명확한 타임라인:\\n   - 0-5초: 강렬한 훅\\n   - 5-50초: 핵심 메시지\\n   - 50-60초: CTA 및 마무리\\n\\n다음 JSON 형식으로 출력:\\n{\\n  \\\"script\\\": \\\"전체 스크립트\\\",\\n  \\\"segments\\\": [\\n    {\\\"time\\\": \\\"0-5\\\", \\\"text\\\": \\\"훅 문구\\\"},\\n    {\\\"time\\\": \\\"5-50\\\", \\\"text\\\": \\\"핵심 내용\\\"},\\n    {\\\"time\\\": \\\"50-60\\\", \\\"text\\\": \\\"마무리\\\"}\\n  ],\\n  \\\"visualSuggestions\\\": [\\\"이미지1 설명\\\", \\\"이미지2 설명\\\"]\\n}\" }}",
+        "options": {}
+      },
+      "id": "gpt-create-script",
+      "name": "GPT - 스크립트생성",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1700, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 스크립트 파싱 및 구조화\nconst response = $input.item.json.message?.content || $input.item.json.text || '';\n\nlet scriptData = {};\ntry {\n  const jsonMatch = response.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    scriptData = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  scriptData = {\n    script: response,\n    segments: [{time: '0-60', text: response}],\n    visualSuggestions: []\n  };\n}\n\n// 기존 아이디어 데이터와 병합\nconst ideaData = $('select-ideas').item.json;\n\nreturn {\n  json: {\n    id: ideaData.id || ideaData['ID'],\n    title: ideaData.title || ideaData['제목'],\n    script: scriptData.script,\n    segments: scriptData.segments,\n    visualSuggestions: scriptData.visualSuggestions,\n    timestamp: Date.now()\n  }\n};"
+      },
+      "id": "structure-script",
+      "name": "구조",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1900, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.creatomate.com/v1/renders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.CREATOMATE_API_KEY }}"
+            }
+          ]
+        },
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  template_id: $env.CREATOMATE_TEMPLATE_ID,\n  modifications: {\n    'Text-1': $json.segments[0].text,\n    'Text-2': $json.segments[1].text,\n    'Text-3': $json.segments[2]?.text || '',\n    'Audio': $json.audioUrl\n  }\n}) }}",
+        "options": {}
+      },
+      "id": "create-video",
+      "name": "AI영상제작",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2100, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.elevenlabs.io/v1/text-to-speech/{{ $env.ELEVENLABS_VOICE_ID }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xi-api-key",
+              "value": "={{ $env.ELEVENLABS_API_KEY }}"
+            }
+          ]
+        },
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  text: $json.script,\n  model_id: 'eleven_multilingual_v2',\n  voice_settings: {\n    stability: 0.5,\n    similarity_boost: 0.75\n  }\n}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "generate-tts",
+      "name": "음성생성",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1900, 450]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 자막 SRT 파일 생성\nconst segments = $json.segments || [];\nconst script = $json.script || '';\n\n// 자막 타이밍 계산 (단순화된 버전)\nfunction timeToSRT(seconds) {\n  const h = Math.floor(seconds / 3600);\n  const m = Math.floor((seconds % 3600) / 60);\n  const s = Math.floor(seconds % 60);\n  const ms = Math.floor((seconds % 1) * 1000);\n  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(ms).padStart(3, '0')}`;\n}\n\nlet srtContent = '';\nlet counter = 1;\n\nif (segments.length > 0) {\n  // segments가 있으면 사용\n  segments.forEach((seg, index) => {\n    const timeRange = seg.time.split('-');\n    const startTime = parseInt(timeRange[0] || 0);\n    const endTime = parseInt(timeRange[1] || startTime + 10);\n    \n    srtContent += `${counter}\\n`;\n    srtContent += `${timeToSRT(startTime)} --> ${timeToSRT(endTime)}\\n`;\n    srtContent += `${seg.text}\\n\\n`;\n    counter++;\n  });\n} else {\n  // segments가 없으면 스크립트를 문장 단위로 분할\n  const sentences = script.match(/[^.!?]+[.!?]+/g) || [script];\n  const duration = 60; // 총 60초\n  const timePerSentence = duration / sentences.length;\n  \n  sentences.forEach((sentence, index) => {\n    const startTime = index * timePerSentence;\n    const endTime = (index + 1) * timePerSentence;\n    \n    srtContent += `${counter}\\n`;\n    srtContent += `${timeToSRT(startTime)} --> ${timeToSRT(endTime)}\\n`;\n    srtContent += `${sentence.trim()}\\n\\n`;\n    counter++;\n  });\n}\n\nreturn {\n  json: {\n    ...($input.item.json),\n    srtContent: srtContent,\n    srtFileName: `subtitle_${$json.timestamp}.srt`\n  }\n};"
+      },
+      "id": "generate-srt",
+      "name": "자막SRT생성",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2100, 500]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "자막",
+        "columns": {
+          "mappings": [
+            {
+              "column": "ID",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "column": "제목",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "column": "SRT파일명",
+              "value": "={{ $json.srtFileName }}"
+            },
+            {
+              "column": "생성일",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "save-subtitle",
+      "name": "자막아웃",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 3,
+      "position": [2300, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.creatomate.com/v1/renders/{{ $json.renderId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.CREATOMATE_API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "check-render-status",
+      "name": "거역치하",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2300, 300]
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "wait-render",
+      "name": "렌더링대기",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [2500, 300],
+      "webhookId": "{{ $json.id }}"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.status }}",
+              "operation": "equals",
+              "value2": "succeeded"
+            }
+          ]
+        }
+      },
+      "id": "check-render-complete",
+      "name": "렌더링완료?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2700, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "download-video",
+      "name": "자막비디오",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "설정",
+        "range": "A:B",
+        "options": {}
+      },
+      "id": "check-upload-mode",
+      "name": "엔로드여부",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 3,
+      "position": [3100, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.autoUpload }}",
+              "operation": "equals",
+              "value2": "true"
+            }
+          ]
+        }
+      },
+      "id": "if-auto-upload",
+      "name": "자동업로드?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [3300, 300]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "title": "={{ $('structure-script').item.json.title }}",
+        "categoryId": "22",
+        "description": "={{ $('structure-script').item.json.script }}",
+        "videoId": "={{ $binary.data }}",
+        "options": {
+          "madeForKids": false,
+          "privacyStatus": "private",
+          "tags": "={{ $('structure-script').item.json.visualSuggestions.join(',') }}"
+        }
+      },
+      "id": "upload-youtube",
+      "name": "유튜브업로드",
+      "type": "n8n-nodes-base.youtube",
+      "typeVersion": 1,
+      "position": [3500, 200]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "로그",
+        "columns": {
+          "mappings": [
+            {
+              "column": "ID",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "column": "제목",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "column": "YouTube URL",
+              "value": "={{ $json.youtubeUrl }}"
+            },
+            {
+              "column": "상태",
+              "value": "완료"
+            },
+            {
+              "column": "업로드일",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-upload",
+      "name": "계정로그",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 3,
+      "position": [3700, 200]
+    },
+    {
+      "parameters": {
+        "content": "## 플로이델의 자동으로 영상 만들기\n\n이 워크플로우는 다음 단계로 쇼츠 영상을 자동 생성합니다:\n\n### 1. 기본 설정\n- 자동화 일정 설정\n- Google Sheets에서 로그, 컨셉 불러오기\n- 모드 체크 (아이디어 생성 vs 재사용)\n\n### 2. 아이디어 생성/선택\n- **생성 모드**: GPT-4로 새 아이디어 생성 → Google Sheets에 저장\n- **재사용 모드**: 기존 아이디어 불러오기\n\n### 3. 스크립트 작성\n- 선택된 아이디어를 GPT-4로 스크립트 변환\n- 타임라인 구조화 (훅/내용/CTA)\n\n### 4. 영상 제작\n- ElevenLabs TTS로 음성 생성\n- Creatomate API로 영상 렌더링\n- SRT 자막 생성\n\n### 5. 업로드\n- 렌더링 완료 확인\n- YouTube 자동 업로드 (옵션)\n- Google Sheets에 로그 기록\n\n### 필요한 API 키\n- GOOGLE_SHEET_ID\n- OPENAI_API_KEY\n- ELEVENLABS_API_KEY\n- ELEVENLABS_VOICE_ID\n- CREATOMATE_API_KEY\n- CREATOMATE_TEMPLATE_ID\n- YOUTUBE_API (옵션)",
+        "height": 600,
+        "width": 400
+      },
+      "id": "note",
+      "name": "설명",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [80, 600]
+    }
+  ],
+  "connections": {
+    "자동화일정": {
+      "main": [
+        [
+          {
+            "node": "로그관리",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "로그관리": {
+      "main": [
+        [
+          {
+            "node": "컨셉",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "컨셉": {
+      "main": [
+        [
+          {
+            "node": "모드체크",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "모드체크": {
+      "main": [
+        [
+          {
+            "node": "모드체크로직",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "모드체크로직": {
+      "main": [
+        [
+          {
+            "node": "생성모드?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "생성모드?": {
+      "main": [
+        [
+          {
+            "node": "GPT1 - 아이디어생각하기",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "아이디어",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT1 - 아이디어생각하기": {
+      "main": [
+        [
+          {
+            "node": "생각도구 - 구조화",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "생각도구 - 구조화": {
+      "main": [
+        [
+          {
+            "node": "아이디어아카이브",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "아이디어아카이브": {
+      "main": [
+        [
+          {
+            "node": "아이디어",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "아이디어": {
+      "main": [
+        [
+          {
+            "node": "반수설정",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "반수설정": {
+      "main": [
+        [
+          {
+            "node": "GPT - 스크립트생성",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT - 스크립트생성": {
+      "main": [
+        [
+          {
+            "node": "구조",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "구조": {
+      "main": [
+        [
+          {
+            "node": "음성생성",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "자막SRT생성",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "음성생성": {
+      "main": [
+        [
+          {
+            "node": "AI영상제작",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI영상제작": {
+      "main": [
+        [
+          {
+            "node": "거역치하",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "거역치하": {
+      "main": [
+        [
+          {
+            "node": "렌더링대기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "렌더링대기": {
+      "main": [
+        [
+          {
+            "node": "렌더링완료?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "렌더링완료?": {
+      "main": [
+        [
+          {
+            "node": "자막비디오",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "거역치하",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "자막SRT생성": {
+      "main": [
+        [
+          {
+            "node": "자막아웃",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "자막비디오": {
+      "main": [
+        [
+          {
+            "node": "엔로드여부",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "엔로드여부": {
+      "main": [
+        [
+          {
+            "node": "자동업로드?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "자동업로드?": {
+      "main": [
+        [
+          {
+            "node": "유튜브업로드",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "계정로그",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "유튜브업로드": {
+      "main": [
+        [
+          {
+            "node": "계정로그",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-12-10T00:00:00.000Z",
+  "versionId": "2"
+}

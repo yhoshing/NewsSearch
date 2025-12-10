@@ -1,0 +1,15 @@
+# Python 의존성 패키지
+# 설치: pip install -r requirements.txt
+
+# Google API 클라이언트 (YouTube 업로드용)
+google-auth-oauthlib>=0.8.0
+google-auth-httplib2>=0.1.1
+google-api-python-client>=2.108.0
+
+# HTTP 요청
+requests>=2.31.0
+
+# 선택 사항 (대체 서비스 사용 시)
+# google-cloud-texttospeech>=2.14.0  # Google Cloud TTS
+# azure-cognitiveservices-speech>=1.31.0  # Azure TTS
+# stability-sdk>=0.8.3  # Stability AI
